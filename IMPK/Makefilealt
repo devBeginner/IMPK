@@ -1,0 +1,15 @@
+#Makefile
+CC := gcc
+CFLAGS := -O3 -Wall -pedantic
+
+CFILES := pka_fischer_gerling_isadskiy.c
+OUTFILE := program.out
+
+pka_fischer_gerling_isadskiy: $(CFILES)
+	$(CC) $(CFILES) $(CFLAGS) -o $(OUTFILE)
+
+clean:
+	rm $(OUTFILE)
+
+run:
+	./$(OUTFILE)
