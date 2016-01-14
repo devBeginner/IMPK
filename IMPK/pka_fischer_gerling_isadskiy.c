@@ -28,10 +28,15 @@
 #define words 6
 #define words2 12
 #define Poly_F {0x000000C9, 0x00000000, 0x00000000,0x00000000, 0x00000000, 0x00000008}
-#define word_mask {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x000007F}
-#define word_mask2 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x000007F,0, 0, 0, 0, 0, 0}
+//#define word_mask {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x000007F}
+//#define word_mask2 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x000007F,0, 0, 0, 0, 0, 0}
 static const word degree_m = 163;
+
+uint64_t c_count = 0;
+
 clock_t start, finish;
+
+uint16_t power_Array[256];
 
 void start_clock() {
     start = clock();
@@ -42,159 +47,118 @@ void stop_clock(char* Fname) {
     printf("\n\n*** The Function %s took %.3f s ***\n\n", Fname, (double) (finish - start) / CLOCKS_PER_SEC);
 }
 
-void shiftLeft(word t, word* A, word shifts);
-void shiftRight(word t, word* A, word shifts);
-
-word getDeg(word t, word* A);
-
-void add(word t, word* A, word* B);
+void add(word t, word* A, word * B);
 void addAtoBfromIndexB(word* A, word* B, word IndexB);
 
-void pow2(word* A);
-void pow2_163(word t, word* A);
+void pow2(word * A);
 
-void copy(word* A, word* B);
-void copy2(word* A, word* B);
+void copy(word* A, word * B);
+void copy2(word* A, word * B);
 
-void mask(word* A);
-void mask2(word* A);
+void mask(word * A);
+void mask2(word * A);
 
-word bitInArray(word bit, word t, word* A);
+word bitInArray(word bit, word t, word * A);
 word bitInWord(word bit, word Int);
 
-void reduce(word* A, word* F);
-void reduce2(word* C, word* F);
+void L2R_Kamm_Table(word* A, word* B, word * C2);
+void reduceBy_163_7_6_3_1_optimized(uint32_t* A);
 
-void multiply(word t, word* A, word* B, word* F, word* ErgPoly);
-void R2L_Kamm(word t, word* A, word* B, word* F, word* C);
+word f2m_is_equal(word t, word *A, word * B);
+void f2m_print(word t, word * A);
+void f2m_rand(word t, word m, word * A);
 
-void R2L_Shift_And_Add(word t, word* A, word* B, word* F, word* ErgPoly);
-void L2R_Shift_And_Add(word t, word* A, word* B, word* F, word* ErgPoly);
+void fill_PowerArray() {
 
-void L2R_Kamm_Table(word* A, word* B, word* C2);
+    int i, x;
 
-word f2m_is_equal(word t, word *A, word *B);
-void f2m_print(word t, word *A);
-void f2m_rand(word t, word m, word *A);
+    for (x = 0; x < 256; x++) {
+
+        for (i = 0; i < 8; i++) {
+
+            if ((x >> i)&0x01) {
+                power_Array[x] ^= (0x1 << (2 * i));
+            }
+        }
+        //        f2m_print(1, &power_Array[x]);
+        //        printf(" %d\n",x);
+    }
+}
 
 /* EIGENE FUNKTIONEN */
+void shift12Left1(word* A) {
 
-void shiftLeft(word t, word* A, word shifts) {
+    //    uint32_t revShift = (word_bits - shifts);
 
-    word i;
-
-    /* Element ganz links nach links Shiften*/
-    A[t - 1] = A[t - 1] << shifts;
-
-    /* Alle nachfolgenden Elemente durchlaufen und die linken Bits des Elements
-     * mit dem vorherigen(bereits geshifteten) Element verunden, dann auch 
-     * dieses Element shiften */
-    for (i = 2; i < (t + 1); i++) {
-        A[t - i + 1] |= A[t - i]>>(word_bits - shifts);
-        A[t - i] = A[t - i] << shifts;
-    }
-
-}
-
-void shiftRight(word t, word* A, word shifts) {
-
-    word i;
-
-    /* Element ganz rechts um nach rechts shiften*/
-    A[0] = A[0] >> shifts;
-
-    /* Alle nachfolgenden Elemente durchlaufen und deren niedrigeste Bits mit
-     * dem vorherigen Element verunden, dann auch dieses Element shiften */
-    for (i = 1; i < t; i++) {
-        A[i - 1] |= A[i] << (word_bits - shifts);
-        A[i] = A[i] >> shifts;
-    }
-}
-
-void test_shift() {
-
-    word shift[words] = {0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x80000001};
-
-    /* SHIFTEN */
-    printf("\nshift:\n");
-    f2m_print(words, shift);
-
-    printf("\nShiften von shift um 1 nach rechts:\n");
-    shiftRight(6, shift, 1);
-    f2m_print(words, shift);
-
-    printf("\nShiften von shift um 1 nach links:\n");
-    shiftLeft(words, shift, 1);
-    f2m_print(words, shift);
-
-    printf("\nShiften von shift um 1 nach links:\n");
-    shiftLeft(words, shift, 1);
-    f2m_print(words, shift);
-
-    printf("\nShiften von shift um 1 nach rechts:\n");
-    shiftRight(6, shift, 1);
-    f2m_print(words, shift);
-
+    A[11] = (A[11] << 1) ^ (A[10] >> 31);
+    A[10] = (A[10] << 1) ^ (A[9] >> 31);
+    A[9] = (A[9] << 1) ^ (A[8] >> 31);
+    A[8] = (A[8] << 1) ^ (A[7] >> 31);
+    A[7] = (A[7] << 1) ^ (A[6] >> 31);
+    A[6] = (A[6] << 1) ^ (A[5] >> 31);
+    A[5] = ((A[5] << 1) ^ (A[4] >> 31));
+    A[4] = ((A[4] << 1) ^ (A[3] >> 31));
+    A[3] = ((A[3] << 1) ^ (A[2] >> 31));
+    A[2] = ((A[2] << 1) ^ (A[1] >> 31));
+    A[1] = ((A[1] << 1) ^ (A[0] >> 31));
+    A[0] <<= 1;
 
 }
 
-word getDeg(word t, word* A) {
+void shift12Right1(word* A) {
 
-    word i, iTmp = 0, iRet = 0;
+    //    uint32_t revShift = (word_bits - shifts);
 
-    /* Alle Arrayelemente vom groessten an durchlaufen, um dasjenige zu finden,
-     * in dem als erstes eine 1 auftaucht, als != 0 ist */
-    for (i = 1; i <= t; i++) {
+    A[0] = (A[0] >> 1) ^ (A[1] << 31);
+    A[1] = (A[1] >> 1) ^ (A[2] << 31);
+    A[2] = (A[2] >> 1) ^ (A[3] << 31);
+    A[3] = (A[3] >> 1) ^ (A[4] << 31);
+    A[4] = (A[4] >> 1) ^ (A[5] << 31);
+    A[5] = (A[5] >> 1) ^ (A[6] << 31);
+    A[6] = (A[6] >> 1) ^ (A[7] << 31);
+    A[7] = (A[7] >> 1) ^ (A[8] << 31);
+    A[8] = (A[8] >> 1) ^ (A[9] << 31);
+    A[9] = (A[9] >> 1) ^ (A[10] << 31);
+    A[10] = (A[10] >> 1) ^ (A[11] << 31);
+    A[11] >>= 1;
 
-        /* Aktuelles Wort zwischen speichern */
-        iTmp = A[t - i];
+}
 
-        /* Wenn das Element != 0 ist, also eine 1 besitzt*/
-        if (iTmp != 0) {
+void shift6Right1(word* A) {
 
-            /* Offset fuer den Grad bestimmen (Position des 1. Bit des Elementes -1) */
-            iRet = word_bits * (t - i) - 1;
+    //    uint32_t revShift = (word_bits - shifts);
 
-            /* Solange das gefundene Element solange um eins nach rechts shiften 
-             * bis das Element 0 ist. Bei jedem durchlauf +1 zum Grad hinzufuegen */
-            do {
-                iRet++;
-                iTmp >>= 1;
-            } while (iTmp != 0);
+    A[0] = (A[0] >> 1) ^ (A[1] << 31);
+    A[1] = (A[1] >> 1) ^ (A[2] << 31);
+    A[2] = (A[2] >> 1) ^ (A[3] << 31);
+    A[3] = (A[3] >> 1) ^ (A[4] << 31);
+    A[4] = (A[4] >> 1) ^ (A[5] << 31);
+    A[5] >>= 1;
 
-            /* Sobald das gefundene Element durchlaufen wurde, dann den ermittelten 
-             * Grad zurueck liefern */
-            return iRet;
+}
+
+word getDeg(word * A) {
+
+    int i;
+    int iTmp = 0;
+
+    for (i = words - 1; i >= 0; i--) {
+        if (A[i]) {
+            for (iTmp = 0; iTmp < word_bits; iTmp++) {
+                if ((A[i] << iTmp)&0x80000000) {
+                    return (++i * word_bits)-(1 + iTmp);
+                }
+            }
+
         }
     }
-
     /* Sollte kein Element != 0 gefunden werden, ist der Grad 0 */
     return 0;
 }
 
-void test_getDeg() {
-
-    word deg0[words2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    word deg1[words2] = {2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    word degMaxU[words2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-    word degMax[words2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80000000};
-
-    printf("\n\nPOLYNOM deg0:\n");
-    f2m_print(words2, deg0);
-    printf("\nGrad=%d \nPOLYNOM deg1:\n", getDeg(words2, deg0));
-    f2m_print(words2, deg1);
-    printf("\nGrad=%d \nPOLYNOM degMaxU:\n", getDeg(words2, deg1));
-    f2m_print(words2, degMaxU);
-    printf("\nGrad=%d \nPOLYNOM degMax:\n", getDeg(words2, degMaxU));
-    f2m_print(words2, degMax);
-    printf("\nGrad=%d\n", getDeg(words2, degMax));
-
-}
-
 /* Die Funktion addiert(XOR) das Array A auf des Array B. 
  * !!! B WIRD VERAENDERT !!!*/
-void add(word t, word* A, word* B) {
-    //    word i;
+void add(word t, word* A, word * B) {
 
     B[0] ^= A[0];
     B[1] ^= A[1];
@@ -203,60 +167,54 @@ void add(word t, word* A, word* B) {
     B[4] ^= A[4];
     B[5] ^= A[5];
 
-    //    for (i = 0; i < t; i++) {
-    //        B[i] ^= A[i];
-    //    }
-}
-
-/* Die Funktion addiert(XOR) das Array A auf des Array B ab.
- * A[0] wird auf B[0+Offset] addiert 
- * !!! B WIRD VERAENDERT !!!*/
-void addAtoBfromIndexB(word* A, word* B, word IndexB) {
-
-    word i;
-    for (i = 0; i < words; i++) {
-        B[i + IndexB] ^= A[i];
-    }
 }
 
 /* Quadrierung des Polynoms*/
-void pow2(word* A) {
+void pow2(word * A) {
 
     word c[words2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    word mask = 0xFF;
 
+    c[0] ^= power_Array[(A[0]) & mask] << 0;
+    c[0] ^= power_Array[(A[0] >> 8) & mask] << 16;
+    c[1] ^= power_Array[(A[0] >> 16) & mask] << 0;
+    c[1] ^= power_Array[(A[0] >> 24) & mask] << 16;
+    c[2] ^= power_Array[(A[1]) & mask] << 0;
+    c[2] ^= power_Array[(A[1] >> 8) & mask] << 16;
+    c[3] ^= power_Array[(A[1] >> 16) & mask] << 0;
+    c[3] ^= power_Array[(A[1] >> 24) & mask] << 16;
+    c[4] ^= power_Array[(A[2]) & mask] << 0;
+    c[4] ^= power_Array[(A[2] >> 8) & mask] << 16;
+    c[5] ^= power_Array[(A[2] >> 16) & mask] << 0;
+    c[5] ^= power_Array[(A[2] >> 24) & mask] << 16;
+    c[6] ^= power_Array[(A[3]) & mask] << 0;
+    c[6] ^= power_Array[(A[3] >> 8) & mask] << 16;
+    c[7] ^= power_Array[(A[3] >> 16) & mask] << 0;
+    c[7] ^= power_Array[(A[3] >> 24) & mask] << 16;
+    c[8] ^= power_Array[(A[4]) & mask] << 0;
+    c[8] ^= power_Array[(A[4] >> 8) & mask] << 16;
+    c[9] ^= power_Array[(A[4] >> 16) & mask] << 0;
+    c[9] ^= power_Array[(A[4] >> 24) & mask] << 16;
+    c[10] ^= power_Array[(A[5]) & mask] << 0;
+    c[10] ^= power_Array[(A[5] >> 8) & mask] << 16;
+    c[11] ^= power_Array[(A[5] >> 16) & mask] << 0;
+    c[11] ^= power_Array[(A[5] >> 24) & mask] << 16;
 
+    reduceBy_163_7_6_3_1_optimized(c);
 
-    L2R_Kamm_Table(A, A, c);
-
-    mask2(c);
-    copy(c, A);
-
-}
-
-void test_pow2() {
-
-    word a[words] = {0, 0, 0x40000, 0, 0, 0};
-    word erg[words] = {0x192, 0, 0, 0, 0, 0};
-
-    printf("\n\n Double \n");
-    printf("\nA:      ");
-    f2m_print(words, a);
-
-    printf("\nDouble: ");
-    pow2(a);
-    f2m_print(words, a);
-
-    printf("\nZiel:   ");
-    f2m_print(words, erg);
-
-    printf("\n");
+    A[0] = c[0];
+    A[1] = c[1];
+    A[2] = c[2];
+    A[3] = c[3];
+    A[4] = c[4];
+    A[5] = c[5];
 
 }
 
 /* Array A nach Array B kopieren (Anzahl der Elemente ist durch Konstante 
  * words festgelegt, damit das nicht immer uebergeben werden muss) 
  */
-void copy(word* A, word* B) {
+void copy(word* A, word * B) {
     word i;
     for (i = 0; i < words; i++) {
         B[i] = A[i];
@@ -267,71 +225,71 @@ void copy(word* A, word* B) {
  * words2 festgelegt, damit das nicht immer uebergeben werden muss) 
  * words2 besitzt die doppelte Goesse von words
  */
-void copy2(word* A, word* B) {
+void copy2(word* A, word * B) {
     word i;
     for (i = 0; i < words2; i++) {
         B[i] = A[i];
     }
 }
-
-/* Die Funktion maskiert das Uebergebene Array. Die Maske wird bestimmt durch
- * die Konstanten words2 fuer die Anzahl der Elemente, die die Maske besitzt 
- * und word_mask2, welche die Definition der Maske als Array darstellt. 
- */
-void mask(word* A) {
-
-    word mask[words] = word_mask;
-    word i;
-
-    for (i = 0; i < words; i++) {
-        A[i] &= mask[i];
-    }
-}
-
-void test_mask() {
-    word a[words] = {0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x800100F1};
-    printf("\nMASK");
-    printf("\nA:      ");
-    f2m_print(words, a);
-    printf("\nmasked: ");
-    mask(a);
-    f2m_print(words, a);
-    printf("\n");
-}
-
-/* Die Funktion maskiert das Uebergebene Array. Die Maske wird bestimmt durch
- * die Konstanten words2 fuer die Anzahl der Elemente, die die Maske besitzt 
- * und word_mask2, welche die Definition der Maske als Array darstellt. 
- */
-void mask2(word* A) {
-
-    word mask[words2] = word_mask2;
-    word i;
-
-    for (i = 0; i < words2; i++) {
-        A[i] &= mask[i];
-    }
-}
-
-//void test_mask2() {
-//    word a[words2] = {0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x80000001, 0xFFFFFFFF, 0, 0, 0, 0, 0, 0x800100F1};
+//
+///* Die Funktion maskiert das Uebergebene Array. Die Maske wird bestimmt durch
+// * die Konstanten words2 fuer die Anzahl der Elemente, die die Maske besitzt 
+// * und word_mask2, welche die Definition der Maske als Array darstellt. 
+// */
+//void mask(word * A) {
+//
+//    word mask[words] = word_mask;
+//    word i;
+//
+//    for (i = 0; i < words; i++) {
+//        A[i] &= mask[i];
+//    }
+//}
+//
+//void test_mask() {
+//    word a[words] = {0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x800100F1};
 //    printf("\nMASK");
 //    printf("\nA:      ");
-//    f2m_print(words2, a);
+//    f2m_print(words, a);
 //    printf("\nmasked: ");
-//    mask2(a);
-//    f2m_print(words2, a);
+//    mask(a);
+//    f2m_print(words, a);
 //    printf("\n");
 //}
+//
+///* Die Funktion maskiert das Uebergebene Array. Die Maske wird bestimmt durch
+// * die Konstanten words2 fuer die Anzahl der Elemente, die die Maske besitzt 
+// * und word_mask2, welche die Definition der Maske als Array darstellt. 
+// */
+//void mask2(word * A) {
+//
+//    word mask[words2] = word_mask2;
+//    word i;
+//
+//    for (i = 0; i < words2; i++) {
+//        A[i] &= mask[i];
+//    }
+//}
+//
+////void test_mask2() {
+////    word a[words2] = {0x80000001, 0x80000001, 0x80000001, 0x80000001, 0x80000001, 0xFFFFFFFF, 0, 0, 0, 0, 0, 0x800100F1};
+////    printf("\nMASK");
+////    printf("\nA:      ");
+////    f2m_print(words2, a);
+////    printf("\nmasked: ");
+////    mask2(a);
+////    f2m_print(words2, a);
+////    printf("\n");
+////}
 
 /* Gibt das bit an der uebergebenen Stelle innerhalb des uebergebenen Elementes zurueck
  */
 word bitInWord(word bit, word Int) {
 
-    if (((0x00000001 << bit) & Int) == 0) {
-        return 0;
+    if (((0x00000001 << bit) & Int)) {
+        return 1;
     }
-    return 1;
+    return 0;
 
 }
 
@@ -345,7 +303,7 @@ void test_bitInWord() {
 /* Gibt das Bit an der uebergebenen Stelle innerhalb des Arrays zurueck
  * t = Anzahl der Arrayelemente
  */
-word bitInArray(word bit, word t, word* A) {
+word bitInArray(word bit, word t, word * A) {
 
     /* Ermitteln, in welchem Element das Bit enthalten ist */
     word faktor = bit / word_bits;
@@ -369,7 +327,7 @@ word bitInArray(word bit, word t, word* A) {
 
 }
 
-void reduceBy_163_7_6_3_1_optimized(word* A) {
+void reduceBy_163_7_6_3_1_optimized(word * A) {
 
     word T = 0;
 
@@ -399,30 +357,45 @@ void reduceBy_163_7_6_3_1_optimized(word* A) {
 
 }
 
-void L2R_Kamm_Table(word* A, word* B, word* ret) {
-
-    int32_t k, j;
+void L2R_Kamm_Table(word* A, word* B, word * ret) {
+    int32_t k;
     word C2[words2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    for (k = word_bits - 1; k >= 0; k--) {
+    for (k = word_bits - 1; k >= 0; k--, shift12Left1(C2)) {
 
-        for (j = 0; j < words; j++) {
-
-            if (bitInWord(k, A[j]) == 1) {
-
-                //                addAtoBfromIndexB(B, C2, j);
-                add(words, B, &C2[j]);
-
-            }
-
+        if (1 << k & A[0]) {
+            add(words, B, &C2[0]);
         }
-
-        
-        if (k != 0) {
-            shiftLeft(words2, C2, 1);
+        if (1 << k & A[1]) {
+            add(words, B, &C2[1]);
+        }
+        if (1 << k & A[2]) {
+            add(words, B, &C2[2]);
+        }
+        if (1 << k & A[3]) {
+            add(words, B, &C2[3]);
+        }
+        if (1 << k & A[4]) {
+            add(words, B, &C2[4]);
+        }
+        if (1 << k & A[5]) {
+            add(words, B, &C2[5]);
         }
 
     }
+
+    C2[0] = (C2[0] >> 1) ^ (C2[1] << 31);
+    C2[1] = (C2[1] >> 1) ^ (C2[2] << 31);
+    C2[2] = (C2[2] >> 1) ^ (C2[3] << 31);
+    C2[3] = (C2[3] >> 1) ^ (C2[4] << 31);
+    C2[4] = (C2[4] >> 1) ^ (C2[5] << 31);
+    C2[5] = (C2[5] >> 1) ^ (C2[6] << 31);
+    C2[6] = (C2[6] >> 1) ^ (C2[7] << 31);
+    C2[7] = (C2[7] >> 1) ^ (C2[8] << 31);
+    C2[8] = (C2[8] >> 1) ^ (C2[9] << 31);
+    C2[9] = (C2[9] >> 1) ^ (C2[10] << 31);
+    C2[10] = (C2[10] >> 1) ^ (C2[11] << 31);
+    C2[11] >>= 1;
 
     reduceBy_163_7_6_3_1_optimized(C2);
 
@@ -435,17 +408,17 @@ void L2R_Kamm_Table(word* A, word* B, word* ret) {
 
 }
 
-uint8_t isOne(word* A) {
+uint8_t isOne(word * A) {
     if ((A[1] | A[2] | A[3] | A[4] | A[5]) == 0 && A[0] == 1) return 1;
     return 0;
 }
 
-uint8_t isZero(word* A) {
+uint8_t isZero(word * A) {
     if ((A[0] | A[1] | A[2] | A[3] | A[4] | A[5]) == 0) return 1;
     return 0;
 }
 
-void invers_Stein(word* b) {
+void invers_Stein(word * b) {
 
     word F[words] = Poly_F;
     word h1[words] = {0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000};
@@ -466,26 +439,26 @@ void invers_Stein(word* b) {
     while (isOne(u) != 1 && isOne(v) != 1) {
 
         while ((v[0]&1) == 0) {
-            shiftRight(words, v, 1);
+            shift6Right1(v);
 
             if ((h1[0]&1) == 0) {
-                shiftRight(words, h1, 1);
+                shift6Right1(h1);
             } else {
                 add(words, F, h1);
-                shiftRight(words, h1, 1);
+                shift6Right1(h1);
             }
         }
         while ((u[0]&1) == 0) {
-            shiftRight(words, u, 1);
+            shift6Right1(u);
 
             if ((h2[0]&1) == 0) {
-                shiftRight(words, h2, 1);
+                shift6Right1(h2);
             } else {
                 add(words, F, h2);
-                shiftRight(words, h2, 1);
+                shift6Right1(h2);
             }
         }
-        if (getDeg(words, v) >= getDeg(words, u)) {
+        if (getDeg(v) >= getDeg(u)) {
             add(words, u, v);
             add(words, h2, h1);
         } else {
@@ -495,33 +468,26 @@ void invers_Stein(word* b) {
     }
 
     if (isOne(v)) {
-        copy(h1, b);
+        b[0] = h1[0];
+        b[1] = h1[1];
+        b[2] = h1[2];
+        b[3] = h1[3];
+        b[4] = h1[4];
+        b[5] = h1[5];
+//        copy(h1, b);
     } else {
-        copy(h2, b);
+        b[0] = h2[0];
+        b[1] = h2[1];
+        b[2] = h2[2];
+        b[3] = h2[3];
+        b[4] = h2[4];
+        b[5] = h2[5];
+//        copy(h2, b);
     }
 
 }
 
-void test_invers_Stein() {
-
-    word p1[words] = {0x00000001, 0xFF000000, 0xFF0000FF, 0x00000000, 0x00000000, 0x00000001};
-    word p2[words] = {0x00000001, 0xFF000000, 0xFF0000FF, 0x00000000, 0x00000000, 0x00000001};
-    word erg[words2] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    printf("\n\nBerechne das Inverse\nvon:  ");
-    f2m_print(words, p1);
-
-    printf("\nErg:  ");
-    invers_Stein(p1);
-    f2m_print(words, p1);
-
-    printf("\nTest: ");
-    L2R_Kamm_Table(p1, p2, erg);
-    f2m_print(words, erg);
-    printf("\n");
-}
-
-void PADD(word* xd, word* Xp, word* Zp, word* Xq, word* Zq) {
+void PADD(word* xd, word* Xp, word* Zp, word* Xq, word * Zq) {
     /* P ADD ( x D , X P , Z P , X Q , Z Q ) */
 
     word Xs[words] = {0, 0, 0, 0, 0, 0};
@@ -552,7 +518,7 @@ void PADD(word* xd, word* Xp, word* Zp, word* Xq, word* Zq) {
 
 }
 
-void PDOUBLE(word* b, word* Xp, word* Zp) {
+void PDOUBLE(word* b, word* Xp, word * Zp) {
 
     word Xs[words] = {0, 0, 0, 0, 0, 0};
     word Zs[words] = {0, 0, 0, 0, 0, 0};
@@ -572,32 +538,6 @@ void PDOUBLE(word* b, word* Xp, word* Zp) {
 
     copy(Zs, Zp);
 
-}
-
-void tests() {
-
-    srand(time(NULL));
-
-    /*    printf("\ntest_ecc_b163: %d\n", test_ecc_b163());*/
-    //
-    //    test_shift();
-    //    test_getDeg();
-    //
-    //    test_bitInArray();
-    //    test_bitInWord();
-    //    
-    //    test_mask();
-    //    test_mask2();
-    //    
-    //    test_R2L_Kamm();
-    //    test_ltr_Shift_and_Add();
-    //    test_reduce2();
-
-    //    test_reduceBy_163_7_6_3_1();
-    //    test_L2R_Kamm_Table();
-
-    //    test_invers_Stein();
-    test_pow2();
 }
 
 /*
@@ -621,7 +561,7 @@ void tests() {
 void f2m_rand(
         word t,
         word m,
-        word *A
+        word * A
         ) {
     word i;
 
@@ -650,7 +590,7 @@ void f2m_rand(
  */
 void f2m_print(
         word t,
-        word *A
+        word * A
         ) {
     word i;
     printf("0x");
@@ -680,7 +620,7 @@ void f2m_print(
 word f2m_is_equal(
         word t,
         word *A,
-        word *B
+        word * B
         ) {
     word i;
     for (i = 0; i < t; i++) if (A[i] != B[i]) return 0;
@@ -720,7 +660,7 @@ void mult_scalar(
         word *xP,
         word *yP,
         word *xQ,
-        word *yQ
+        word * yQ
         ) {
     /* TODO */
 
@@ -946,8 +886,8 @@ word test_ecc_b163() {
     printf("************************************************************\n");
     printf("test scalar multiplications...\n");
     start_clock();
-    for (i = 0; i < 1000; i++) mult_scalar(m, f, a, b, n, xP, yP, xQ, yQ);
-    stop_clock("1000 Skalarmultiplikationen");
+    for (i = 0; i < 10000; i++) mult_scalar(m, f, a, b, n, xP, yP, xQ, yQ);
+    stop_clock("10000 Skalarmultiplikationen");
 
     return 0;
 }
@@ -959,10 +899,11 @@ word test_ecc_b163() {
 int main(void) {
 
     srand(1);
+    fill_PowerArray();
     printf("\ntest_ecc_b163: %d\n", test_ecc_b163());
 
     //    tests();
-
+    printf("Count %d", c_count);
     return 0;
 }
 
